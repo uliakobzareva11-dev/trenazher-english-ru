@@ -1,7 +1,7 @@
 // Платный доступ к тренажёру по личным ссылкам.
 //
-//   node zamok/dostup.mjs dobavit "Маша Петрова" 2026-11-22   новый ученик, оплачено до даты → печатает его ссылку
-//   node zamok/dostup.mjs prodlit "Маша Петрова" 2026-12-22   продлить (ссылка та же)
+//   node zamok/dostup.mjs dobavit "Маша Петрова" 2026-11-22 400   новый ученик, оплачено до даты, сумма (своим — без суммы)
+//   node zamok/dostup.mjs prodlit "Маша Петрова" 2026-12-22 400   продлить (ссылка та же)
 //   node zamok/dostup.mjs spisok                              кто есть и до какого числа
 //   node zamok/dostup.mjs sobrat                              собрать закрытую версию сайта для публикации
 //
@@ -92,14 +92,26 @@ async function sobrat() {
   if (ne.length) console.log("доступ закрыт (оплата кончилась): " + ne.map(u => `${u.imya} (до ${u.do})`).join(", "));
 }
 
-const [cmd, imya, data] = process.argv.slice(2);
+// Самозанятость: каждая оплата — чек в «Мой налог» сразу при получении денег (npd.nalog.ru).
+// Журнал оплат в ucheniki.json — чтобы сверить с чеками в конце месяца.
+function oplata(u, summa, data) {
+  if (!summa) return;                      // своим бесплатно — чек не нужен
+  (u.oplaty ||= []).push({ poluchena: segodnya(), summa: Number(summa), do: data });
+  const [g, m, dd] = data.split("-");
+  console.log(`\n🧾 ЧЕК в «Мой налог» сегодня: «Доступ к онлайн-тренажёру английского языка до ${dd}.${m}.${g}», ` +
+    `${summa} ₽, покупатель — физическое лицо`);
+}
+
+const [cmd, imya, data, summa] = process.argv.slice(2);
 try {
   if (cmd === "dobavit") {
     proverDatu(data);
     const d = chitat();
     if (d.ucheniki.some(u => u.imya === imya)) throw new Error(`«${imya}» уже есть — используй prodlit`);
     const kod = novyKod();
-    d.ucheniki.push({ imya, kod, do: data, dobavlen: segodnya(), metka: await metka(kod) });
+    const u = { imya, kod, do: data, dobavlen: segodnya(), metka: await metka(kod) };
+    d.ucheniki.push(u);
+    oplata(u, summa, data);
     zapisat(d);
     console.log(`${imya}: оплачено до ${data}\nссылка: ${ssylka(kod)}\nметка в Метрике: ${await metka(kod)}`);
     console.log("ссылка заработает после «sobrat» и публикации");
@@ -109,6 +121,7 @@ try {
     const u = d.ucheniki.find(u => u.imya === imya);
     if (!u) throw new Error(`«${imya}» нет в списке`);
     u.do = data;
+    oplata(u, summa, data);
     zapisat(d);
     console.log(`${imya}: продлено до ${data}, ссылка прежняя: ${ssylka(u.kod)}`);
   } else if (cmd === "spisok") {

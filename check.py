@@ -20,6 +20,13 @@
 import collections, hashlib, json, re, shutil, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
+# На Windows консоль в cp1251 и не печатает ✅/⛔ — без этого проверка падает и замок не пускает коммит
+for stream in (sys.stdout, sys.stderr):
+    try:
+        stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 FILE = Path(__file__).with_name("index.html")
 SITE = "https://trenazher-english.ru/"
 SHRINK_FILE = 0.10   # файл похудел больше чем на 10 % — стоп

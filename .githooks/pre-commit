@@ -1,0 +1,29 @@
+#!/bin/sh
+# Замок перед коммитом. Включается один раз командой
+#   git config core.hooksPath .githooks
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# 1. Что кладём в коммит: только то, из чего собирается сайт. Тяжёлое, учебники и данные учеников — мимо git.
+bad=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=AM | grep -Ei '\.(pdf|docx?|xlsx?|zip|rar|key)$|(^|/)\.DS_Store$|(^|/)\.env$|[Оо]тч[её]т|[Rr]eport|[Кк]опия| copy|^index[ -].*\.html$')
+if [ -n "$bad" ]; then
+  echo "⛔ В коммит попали файлы, которым в репозитории не место:"
+  echo "$bad" | sed 's/^/   /'
+  echo "Убрать из коммита: git restore --staged <файл>"
+  exit 1
+fi
+big=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=AM | while IFS= read -r f; do
+  [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 5000000 ] && echo "$f"
+done)
+if [ -n "$big" ]; then
+  echo "⛔ Файлы больше 5 МБ — git хранит каждую версию навсегда, репозиторий упрётся в пределы GitHub:"
+  echo "$big" | sed 's/^/   /'
+  exit 1
+fi
+
+# 2. Сам тренажёр: темы, задания, ключи прогресса, JavaScript.
+python3 check.py || {
+  echo ""
+  echo "Коммит остановлен проверкой. Исправь или, если изменение намеренное:"
+  echo "  python3 check.py --force \"что и зачем убрала\"  и потом  git commit --no-verify"
+  exit 1
+}

@@ -206,7 +206,9 @@ def fetch(url):
 
 
 def live():
-    local = FILE.read_bytes()
+    # С платным доступом на сайте лежит не index.html, а его закрытая сборка (zamok/dostup.mjs sobrat)
+    built = FILE.parent.parent / "trenazher-dostup" / "sait" / "index.html"
+    local = (built if built.exists() else FILE).read_bytes()
     body = fetch("%s?v=%d" % (SITE, int(time.time())))
     if body is None:
         stops.append("сайт не открылся")

@@ -4,6 +4,8 @@
 //   node zamok/dostup.mjs prodlit "Маша Петрова" 2026-12-22 400   продлить (ссылка та же)
 //   node zamok/dostup.mjs spisok                              кто есть и до какого числа
 //   node zamok/dostup.mjs sobrat                              собрать закрытую версию сайта для публикации
+//   node zamok/dostup.mjs vylozhit                            собрать и выложить на сайт (репо trenazher-english-site)
+//   node zamok/dostup.mjs srok                               у кого доступ кончился или кончится за 3 дня — в начале каждой работы
 //
 // Как устроено. Весь index.html шифруется ключом, который при каждой сборке новый.
 // Этот ключ упакован отдельно под код каждого ученика с действующей оплатой.
@@ -13,6 +15,7 @@
 // Список учеников — данные детей, поэтому он лежит ВНЕ git: ../trenazher-dostup/ucheniki.json
 import { webcrypto as crypto } from "node:crypto";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +23,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOSTUP = path.resolve(REPO, "..", "trenazher-dostup");
 const SPISOK = path.join(DOSTUP, "ucheniki.json");
 const SAIT = path.join(DOSTUP, "sait");
+const SBORKA = path.join(DOSTUP, "poslednyaya-sborka.json"); // кого впустила последняя сборка — для srok
 const SITE = "https://trenazher-english.ru/";
 const METRIKA = 113733723;
 const ITER = 150000;                     // PBKDF2: подбирать код перебором долго, телефону — доля секунды
@@ -85,6 +89,7 @@ async function sobrat() {
 
   fs.mkdirSync(SAIT, { recursive: true });
   fs.writeFileSync(path.join(SAIT, "index.html"), out, "utf8");
+  fs.writeFileSync(SBORKA, JSON.stringify({ data: segodnya(), imena: dey.map(u => u.imya) }, null, 2) + "\n", "utf8");
   for (const f of ["CNAME", ".nojekyll"]) fs.copyFileSync(path.join(REPO, f), path.join(SAIT, f));
   console.log("собрано: %s (%d КБ), открывают %d из %d учеников",
     path.join(SAIT, "index.html"), Math.round(out.length / 1024), dey.length, d.ucheniki.length);
@@ -127,10 +132,34 @@ try {
   } else if (cmd === "spisok") {
     for (const u of chitat().ucheniki)
       console.log(`${u.do >= segodnya() ? "✅" : "⛔"} ${u.imya} — до ${u.do} — метка ${u.metka} — ${ssylka(u.kod)}`);
+  } else if (cmd === "srok") {
+    // Сайт сам сроки не проверяет: истёкший ученик открывает тренажёр, пока сайт не пересобран
+    const d = chitat(), s = segodnya();
+    const cherez3 = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+    const vSborke = fs.existsSync(SBORKA) ? JSON.parse(fs.readFileSync(SBORKA, "utf8")).imena : [];
+    const istek = d.ucheniki.filter(u => u.do < s);
+    const skoro = d.ucheniki.filter(u => u.do >= s && u.do <= cherez3);
+    const pereSobrat = istek.filter(u => vSborke.includes(u.imya));
+    for (const u of pereSobrat) console.log(`⛔ ${u.imya}: оплачено до ${u.do}, но на сайте ещё открывает — пересобрать и выложить`);
+    for (const u of istek.filter(u => !vSborke.includes(u.imya))) console.log(`· ${u.imya}: доступ закрыт с ${u.do}`);
+    for (const u of skoro) console.log(`⏰ ${u.imya}: доступ кончается ${u.do}`);
+    if (!pereSobrat.length && !skoro.length) console.log("✅ сроки в порядке: никто не истёк и никому не кончается в ближайшие 3 дня");
+  } else if (cmd === "vylozhit") {
+    // Сайтовый репо хранит только сборку: каждая публикация — один коммит вместо прошлого (force здесь допустим,
+    // это не исходник). Иначе в истории копились бы старые сборки с ключами учеников, которые уже не платят.
+    await sobrat();
+    const git = (...a) => execFileSync("git", a, { cwd: SAIT, stdio: "pipe" }).toString();
+    git("checkout", "-q", "--orphan", "novaya");
+    git("add", "-A", "index.html", "CNAME", ".nojekyll");
+    git("-c", "user.name=uliakobzareva11-dev", "-c", "user.email=uliakobzareva11-dev@users.noreply.github.com",
+        "commit", "-q", "-m", "Сборка " + segodnya());
+    git("branch", "-M", "main");
+    git("push", "-q", "--force", "origin", "main");
+    console.log("выложено; через 1–10 минут проверить: python3 check.py --live");
   } else if (cmd === "sobrat") {
     await sobrat();
   } else {
-    console.log("команды: dobavit «имя» ГГГГ-ММ-ДД · prodlit «имя» ГГГГ-ММ-ДД · spisok · sobrat");
+    console.log("команды: dobavit «имя» ГГГГ-ММ-ДД [сумма] · prodlit «имя» ГГГГ-ММ-ДД [сумма] · spisok · srok · sobrat · vylozhit");
   }
 } catch (e) {
   console.error("⛔ " + e.message);

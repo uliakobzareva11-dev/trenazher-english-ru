@@ -204,12 +204,12 @@
 
   <!-- ЭКРАН 0: кто занимается -->
   <section id="users" class="hidden">
-    <h1>Кто занимается?</h1>
-    <p class="sub">У каждого ученика свой прогресс и свои ошибки. Они хранятся в этом браузере.</p>
+    <h1>Как тебя называть?</h1>
+    <p class="sub">Впиши имя или ник, и тренажёр запомнит, что ты прошёл и где ошибался. Регистрация и пароль не нужны.</p>
     <div id="userList"></div>
     <div class="newuser">
-      <input id="newName" type="text" placeholder="Имя ученика" autocomplete="off" spellcheck="false">
-      <button id="addUser" class="btn main">Добавить</button>
+      <input id="newName" type="text" placeholder="Имя или ник" autocomplete="off" spellcheck="false">
+      <button id="addUser" class="btn main">Начать</button>
     </div>
   </section>
 
@@ -1989,7 +1989,7 @@ slovo: { kind:"gram", title:"Словообразование в формате 
       {"q": "It was an ___ experience.", "hint": "FORGET", "a": "unforgettable", "wrong": ["forgettable", "unforgetable"], "why": "Незабываемый: un- + forget + -able. t удваивается: unforgettable.", "src": "своё", "title": "Lake Baikal", "ctx": "Our trip to Lake Baikal was amazing."},
       {"q": "It was ___ to carry it alone.", "hint": "POSSIBLE", "a": "impossible", "wrong": ["unpossible", "possible"], "why": "Нельзя унести одному — невозможно. Перед p — im-: impossible.", "src": "своё", "title": "A Heavy Box", "ctx": "The box with books was very heavy."},
       {"q": "\"It's ___.\"", "hint": "POLITE", "a": "impolite", "wrong": ["unpolite", "polite"], "why": "Говорить с полным ртом — невежливо. Перед p — im-: impolite.", "src": "своё", "title": "At the Table", "ctx": "\"Don't talk with your mouth full,\" Mum said."},
-      {"q": "She is a very ___ person.", "hint": "PATIENT", "a": "impatient", "wrong": ["unpatient", "patient"], "why": "Не любит ждать — нетерпеливая. Перед p — im-: impatient.", "src": "своё", "title": "My Sister", "ctx": "My sister hates waiting for anything."},
+      {"q": "She is very ___ and always wants everything at once.", "hint": "PATIENT", "a": "impatient", "wrong": ["unpatient", "patient"], "why": "Не любит ждать — нетерпеливая. Перед p — im-: impatient.", "src": "своё", "title": "My Sister", "ctx": "My sister hates waiting for anything."},
       {"q": "My answer was ___.", "hint": "CORRECT", "a": "incorrect", "wrong": ["uncorrect", "correct"], "why": "Ошибка — неверный ответ: in- + correct = incorrect.", "src": "своё", "title": "The Test", "ctx": "I made a mistake in the last question of the test."},
       {"q": "She is very ___.", "hint": "DEPEND", "a": "independent", "wrong": ["dependent", "undependent"], "why": "Живёт сама — независимая: in- + depend + -ent = independent.", "src": "своё", "title": "My Cousin", "ctx": "My cousin is only eighteen, but she lives alone and works."},
       {"q": "But it is ___ to drive without a licence.", "hint": "LEGAL", "a": "illegal", "wrong": ["unlegal", "inlegal"], "why": "Без прав нельзя — незаконно. Перед l — il-: illegal, две l.", "src": "своё", "title": "Driving Rules", "ctx": "My brother is sixteen, and he wants to drive a car."},
@@ -5093,11 +5093,6 @@ const show = id => ["users","report","menu","blocks","ruleScreen","card","done",
 function pokazatUchenikov(){
   const box = $("#userList"); box.innerHTML = "";
   const imena = Object.keys(store.users);
-  if(!imena.length){
-    const p = document.createElement("p"); p.className = "sub";
-    p.textContent = "Пока никого нет. Впиши имя и нажми «Добавить».";
-    box.appendChild(p);
-  }
   imena.forEach(name => {
     const u = store.users[name];
     const sdelano = Object.keys(u.passed || {}).length;

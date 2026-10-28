@@ -4557,7 +4557,12 @@ function vybrat(name){
 
 /* Счёт по темам: сколько заданий сделано и сколько из них с ошибкой.
    Считаем и в повторении: забыл прошлую тему — это тоже сигнал репетитору. */
+/* цели Метрики: где уходят новые люди. Имена в Метрику не отправляем */
+const cel = id => { try{ ym(113733723, 'reachGoal', id); }catch(e){} };
+let otvetPoslan = false;
+
 function noteResult(verno){
+  if(!otvetPoslan){ otvetPoslan = true; cel("otvet"); }   // один раз за заход
   const u = uchenik(); if(!u || !setKey) return;
   const key = setKey + "-" + (revising ? reviseIdx : blockIdx);
   const st = u.errors[key] || (u.errors[key] = {set:setKey, setTitle:SETS[setKey].title, name:curBlock().name, wrong:0, total:0});
@@ -5120,6 +5125,7 @@ function pokazatUchenikov(){
 function dobavitUchenika(){
   const name = $("#newName").value.trim();
   if(!name) return;
+  cel("nachal");
   if(store.users[name]){ vybrat(name); buildMenu(); show("menu"); return; }
   vybrat(name); buildMenu(); show("menu");
 }
@@ -5266,6 +5272,7 @@ function startSet(key){
 /* Вход в тему: сначала короткое повторение прошлой, потом правило новой.
    В первой теме раздела повторять нечего — идём сразу к правилу. */
 function openBlock(i){
+  cel("tema");
   blockIdx = i;
   const prev = i > 0 ? SETS[setKey].blocks[i-1] : null;
   const novye = prev ? (REVISE[setKey + "|" + prev.name] || []) : [];   // свои предложения для повторения

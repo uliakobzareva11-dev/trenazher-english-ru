@@ -4,91 +4,69 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Тренажёр английского</title>
-<meta name="description" content="Тренажёр английского для подготовки к ЕГЭ: чтение, грамматика, словообразование. Доступ по личной ссылке.">
+<meta name="description" content="Тренажёр английского для подготовки к ЕГЭ: чтение вслух с озвучкой, грамматика и словообразование в формате ЕГЭ.">
 <style>
-  :root{ --bg:#fbfbfa; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e4e4e1; --accent:#2f5d50; --wrong:#8c3b2f; }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#16181a; --card:#1f2225; --ink:#ececea; --muted:#9a9a97; --line:#33373b; --accent:#7fb8a4; --wrong:#e09a8c; }
-  }
-  *{box-sizing:border-box}
+  :root{ --bg:#fbfbfa; --ink:#1a1a1a; --muted:#6b6b6b; }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#16181a; --ink:#ececea; --muted:#9a9a97; } }
   body{margin:0; background:var(--bg); color:var(--ink); font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
        min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px}
-  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px 24px; max-width:440px; width:100%}
-  h1{font-size:24px; margin:0 0 6px}
-  .sub{color:var(--muted); margin:0 0 22px}
-  label{display:block; font-size:15px; color:var(--muted); margin-bottom:6px}
-  .row{display:flex; gap:8px}
-  input{flex:1; min-width:0; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink)}
-  button{font:inherit; padding:10px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer}
-  #msg{min-height:1.5em; margin:12px 0 0; font-size:15px}
-  #msg.err{color:var(--wrong)}
   .wait{color:var(--muted)}
 </style>
 </head>
 <body>
-<div class="card" id="card">
-  <p class="wait">Открываю тренажёр…</p>
-</div>
+<p class="wait">Открываю тренажёр…</p>
 <script>
+// Две версии тренажёра. Открытая (чтение и звуки + одна тема ЕГЭ) лежит прямо здесь.
+// Полная зашифрована в polny.txt и открывается только кодом из личной ссылки.
 const D = /*DANNYE*/null;
-const S = /*SHIFR*/"";
+const OTKRYTO = /*OTKRYTO*/"";
 const LS = "trenazher-dostup";
 const enc = new TextEncoder();
 const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 const hex = (u, n) => Array.from(u.slice(0, n), x => x.toString(16).padStart(2, "0")).join("");
 const sha = async s => new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s)));
 const chist = k => (k || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const napisat = html => { document.open(); document.write(html); document.close(); };
 
-async function otkryt(kod){
+async function polnaya(kod){
   const v = D.v[hex(await sha("id:" + kod), 8)];
-  if(!v) return false;
+  if(!v) return null;
   try{
+    const P = await (await fetch("polny.txt?" + D.sb, {cache:"no-store"})).json();
     const base = await crypto.subtle.importKey("raw", enc.encode(kod), "PBKDF2", false, ["deriveKey"]);
     const kk = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b(v[0]), iterations:D.it, hash:"SHA-256"},
       base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
     const syroy = await crypto.subtle.decrypt({name:"AES-GCM", iv:b(v[1])}, kk, b(v[2]));
     const kluch = await crypto.subtle.importKey("raw", syroy, "AES-GCM", false, ["decrypt"]);
-    let html = new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:b(D.iv)}, kluch, b(S)));
-    try{ localStorage.setItem(LS, kod); }catch(e){}
-    if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+    let html = new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:b(P.iv)}, kluch, b(P.s)));
     // метка ученика в Метрике: одна ссылка на многих устройствах = ссылку передали
     const m = hex(await sha("metka:" + kod), 4);
-    html = html.replace("</body>", "<script>try{ym(" + D.m + ",'userParams',{dostup:'" + m + "'})}catch(e){}<\/script></body>");
-    document.open(); document.write(html); document.close();
-    return true;
-  }catch(e){ return false; }
+    return html.replace("</body>", "<script>try{ym(" + D.m + ",'userParams',{dostup:'" + m + "'})}catch(e){}<\/script></body>");
+  }catch(e){ return null; }
 }
 
-function zamok(oshibka){
-  document.getElementById("card").innerHTML =
-    '<h1>Тренажёр английского</h1>' +
-    '<p class="sub">Чтение, грамматика и словообразование в формате ЕГЭ. Вход по личной ссылке, которую выдаёт преподаватель.</p>' +
-    '<form id="f"><label for="k">Код из ссылки</label><div class="row">' +
-    '<input id="k" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="например, k7mqx2rf9t">' +
-    '<button>Открыть</button></div><p id="msg"></p></form>';
-  const msg = document.getElementById("msg");
-  if(oshibka){ msg.textContent = oshibka; msg.className = "err"; }
-  document.getElementById("f").onsubmit = async e => {
-    e.preventDefault();
-    const kod = chist(document.getElementById("k").value);
-    msg.className = ""; msg.textContent = "Проверяю…";
-    if(!(kod && await otkryt(kod))){ msg.className = "err"; msg.textContent = "Код не подходит. Проверьте его или спросите преподавателя."; }
-  };
-  // Метрика только на экране входа: внутри тренажёра свой счётчик
-  (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();
-    k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-  })(window, document, "script", "https://mc.yandex.ru/metrika/tag.js?id=" + D.m, "ym");
-  ym(D.m, "init", {clickmap:true, accurateTrackBounce:true, trackLinks:true, params:{ekran:"vhod"}});
-}
-
-(async () => {
+// document.write заменяет страницу, только когда браузер её дочитал, иначе дописывает снизу — ждём DOMContentLoaded
+async function start(){
   let kod = chist(decodeURIComponent(location.hash.slice(1)));
   let izPamyati = false;
   if(!kod){ try{ kod = chist(localStorage.getItem(LS)); izPamyati = true; }catch(e){} }
-  if(kod && await otkryt(kod)) return;
-  if(kod && izPamyati){ try{ localStorage.removeItem(LS); }catch(e){} }
-  zamok(kod ? "Эта ссылка больше не открывает тренажёр. Возможно, закончилась оплата: напишите преподавателю." : "");
-})();
+  if(kod){
+    const html = await polnaya(kod);
+    if(html){
+      try{ localStorage.setItem(LS, kod); }catch(e){}
+      if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+      return napisat(html);
+    }
+    try{ localStorage.removeItem(LS); }catch(e){}
+    if(location.hash) history.replaceState(null, "", location.pathname + location.search);
+    const t = izPamyati ? "Ваша ссылка больше не открывает полный тренажёр, возможно, закончилась подписка. Открыта бесплатная часть."
+                        : "Код не подходит, проверьте ссылку. Открыта бесплатная часть.";
+    return napisat(OTKRYTO.replace("<body>", "<body><div onclick=\"this.remove()\" style=\"background:#8c3b2f;color:#fff;" +
+      "padding:12px 16px;font:15px/1.4 system-ui,sans-serif;cursor:pointer\">" + t + " ✕</div>"));
+  }
+  napisat(OTKRYTO);
+}
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 </script>
 </body>
 </html>

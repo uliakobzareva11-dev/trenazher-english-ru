@@ -7,7 +7,8 @@
 //   node zamok/dostup.mjs vylozhit                            собрать и выложить на сайт (репо trenazher-english-site)
 //   node zamok/dostup.mjs srok                               у кого доступ кончился или кончится за 3 дня — в начале каждой работы
 //
-// Как устроено. Весь index.html шифруется ключом, который при каждой сборке новый.
+// Как устроено. На сайте лежит открытая версия (чтение и звуки + одна тема ЕГЭ, см. OTKRYTO),
+// а полный index.html зашифрован в polny.txt ключом, который при каждой сборке новый.
 // Этот ключ упакован отдельно под код каждого ученика с действующей оплатой.
 // Кто не продлил — при следующей сборке его упаковки нет, ссылка перестаёт открывать тренажёр.
 // У остальных ссылки не меняются.
@@ -58,6 +59,30 @@ function proverDatu(d) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) throw new Error("дата в виде 2026-11-22");
 }
 
+// Что видно без ссылки (решение Юли 28.10): чтение и звуки целиком + первая тема «Грамматики в формате ЕГЭ».
+// У остальных тем остаются только названия и число заданий: самих заданий, ответов и правил в открытой версии нет.
+const OTKRYTO = { types: "vse", diph: "vse", cons: "vse", ege: "vse", endings: "vse", texts: "vse", egegram: [0] };
+
+function otkrytayaVersiya(html) {
+  const vynut = name => {
+    const s = html.indexOf("const " + name + " = {");
+    const e = html.indexOf("\n};", s);
+    if (s < 0 || e < 0) throw new Error(name + " не найден в index.html");
+    return { s, e, obj: Function("return (" + html.slice(s + ("const " + name + " = ").length, e + 2) + ")")() };
+  };
+  const SETS = vynut("SETS"), REVISE = vynut("REVISE");
+  for (const [k, set] of Object.entries(SETS.obj)) {
+    const ok = OTKRYTO[k];
+    set.blocks = set.blocks.map((b, i) => (ok === "vse" || (ok && ok.includes(i))) ? b
+      : { name: b.name, zakryto: true, n: (b.drill || []).length, drill: [], explain: [], examples: [] });
+    if (set.blocks.every(b => b.zakryto)) set.zakryto = true;
+  }
+  const revise = Object.fromEntries(Object.entries(REVISE.obj).filter(([k]) => OTKRYTO[k.split("|")[0]] === "vse"));
+  // в index.html SETS стоит раньше REVISE — склеиваем куски по порядку
+  return html.slice(0, SETS.s) + "const SETS = " + JSON.stringify(SETS.obj) + ";" +
+    html.slice(SETS.e + 3, REVISE.s) + "const REVISE = " + JSON.stringify(revise) + ";" + html.slice(REVISE.e + 3);
+}
+
 async function sobrat() {
   const d = chitat();
   const dey = d.ucheniki.filter(u => u.do >= segodnya());
@@ -80,18 +105,21 @@ async function sobrat() {
     vhody[await id(u.kod)] = [b64(sol), b64(iv2), b64(upak)];
   }
 
+  const sb = b64(crypto.getRandomValues(new Uint8Array(6))).replace(/[^a-z0-9]/gi, "");   // свежий polny.txt мимо кэша
   const shablon = fs.readFileSync(path.join(REPO, "zamok", "obolochka.html"), "utf8");
-  const dannye = JSON.stringify({ it: ITER, iv: b64(iv), v: vhody, m: METRIKA });
+  const dannye = JSON.stringify({ it: ITER, v: vhody, m: METRIKA, sb });
+  const otkryto = JSON.stringify(otkrytayaVersiya(html)).replace(/<\//g, "<\\/");   // </script> внутри строки закрыл бы оболочку
   const out = shablon
     .replace("/*DANNYE*/null", () => dannye)
-    .replace("/*SHIFR*/\"\"", () => JSON.stringify(b64(shifr)));
-  if (out.includes("/*DANNYE*/") || out.includes("/*SHIFR*/")) throw new Error("шаблон оболочки не подставился");
+    .replace("/*OTKRYTO*/\"\"", () => otkryto);
+  if (out.includes("/*DANNYE*/") || out.includes("/*OTKRYTO*/")) throw new Error("шаблон оболочки не подставился");
 
   fs.mkdirSync(SAIT, { recursive: true });
   fs.writeFileSync(path.join(SAIT, "index.html"), out, "utf8");
+  fs.writeFileSync(path.join(SAIT, "polny.txt"), JSON.stringify({ iv: b64(iv), s: b64(shifr) }), "utf8");
   fs.writeFileSync(SBORKA, JSON.stringify({ data: segodnya(), imena: dey.map(u => u.imya) }, null, 2) + "\n", "utf8");
   for (const f of ["CNAME", ".nojekyll"]) fs.copyFileSync(path.join(REPO, f), path.join(SAIT, f));
-  console.log("собрано: %s (%d КБ), открывают %d из %d учеников",
+  console.log("собрано: %s (открытая версия %d КБ, полная зашифрована в polny.txt), полную открывают %d из %d учеников",
     path.join(SAIT, "index.html"), Math.round(out.length / 1024), dey.length, d.ucheniki.length);
   const ne = d.ucheniki.filter(u => u.do < segodnya());
   if (ne.length) console.log("доступ закрыт (оплата кончилась): " + ne.map(u => `${u.imya} (до ${u.do})`).join(", "));
@@ -150,7 +178,7 @@ try {
     await sobrat();
     const git = (...a) => execFileSync("git", a, { cwd: SAIT, stdio: "pipe" }).toString();
     git("checkout", "-q", "--orphan", "novaya");
-    git("add", "-A", "index.html", "CNAME", ".nojekyll");
+    git("add", "-A", "index.html", "polny.txt", "CNAME", ".nojekyll");
     git("-c", "user.name=uliakobzareva11-dev", "-c", "user.email=uliakobzareva11-dev@users.noreply.github.com",
         "commit", "-q", "-m", "Сборка " + segodnya());
     git("branch", "-M", "main");

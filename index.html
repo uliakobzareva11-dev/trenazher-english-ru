@@ -34,6 +34,8 @@
   }
   .menu-item b{display:block; font-size:17px; font-weight:600; margin-bottom:3px}
   .menu-item span{color:var(--muted); font-size:14px}
+  .menu-item.zakryto{opacity:.75}
+  .menu-item .zamok{color:var(--muted); font-weight:600}
   .menu-item .done{color:var(--ok, #2e7d32); font-weight:600}
   .menu-item.slaboe{
     border-color:var(--accent, #2e6b55); border-width:2px;
@@ -160,6 +162,7 @@
     background:var(--card); color:inherit; font:inherit; font-weight:500; cursor:pointer;
   }
   .btn.main{background:var(--accent); border-color:var(--accent); color:#fff}
+  a.btn{display:block; text-align:center; text-decoration:none; box-sizing:border-box}
 
   .done h2{font-size:20px; margin:0 0 6px}
   .group{border:1px solid var(--line); background:var(--card); border-radius:12px; padding:16px; margin-bottom:12px}
@@ -214,6 +217,25 @@
   </section>
 
   <!-- ЭКРАН: отчёт для репетитора -->
+  <!-- ЭКРАН: тема по подписке (в открытой версии сайта) -->
+  <section id="podpiska" class="hidden">
+    <h1>Эта тема по подписке</h1>
+    <p class="sub">Бесплатно открыты чтение и звуки и тема «Множественное число» в формате ЕГЭ. Вся остальная грамматика и словообразование, больше тысячи заданий с разбором ошибок, доступны по подписке.</p>
+    <p><b>400 ₽ в месяц.</b> Напишите мне, и я пришлю личную ссылку: с ней тренажёр откроется целиком на телефоне и компьютере.</p>
+    <div class="row">
+      <a class="btn main" id="kontaktTg" target="_blank" rel="noopener">Написать в Telegram</a>
+      <a class="btn" id="kontaktMax" target="_blank" rel="noopener">Написать в MAX</a>
+    </div>
+    <p class="sub" style="margin-top:22px">Уже есть ссылка? Впишите код из неё, это буквы и цифры после знака #.</p>
+    <div class="newuser">
+      <input id="kodVvod" type="text" placeholder="Код из ссылки" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="kodOtkryt" class="btn main">Открыть</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="podpiskaBack">К разделам</button>
+    </div>
+  </section>
+
   <section id="report" class="hidden">
     <div class="crumb">Отчёт для репетитора</div>
     <h1 id="reportName">Отчёт</h1>
@@ -5092,7 +5114,7 @@ function dist(a,b){
   return d[m][n];
 }
 function shuffle(a){const r=a.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
-const show = id => ["users","report","menu","blocks","ruleScreen","card","done","reader"].forEach(s => $("#"+s).classList.toggle("hidden", s!==id));
+const show = id => ["users","podpiska","report","menu","blocks","ruleScreen","card","done","reader"].forEach(s => $("#"+s).classList.toggle("hidden", s!==id));
 
 /* ---- кто занимается ---- */
 function pokazatUchenikov(){
@@ -5259,11 +5281,12 @@ function startSet(key){
   $("#setSub").textContent = "Правил в разделе: " + set.blocks.length + ". Каждое — объяснение и отработка.";
   set.blocks.forEach((b,i) => {
     const btn=document.createElement("button");
-    btn.className="menu-item";
+    btn.className="menu-item" + (b.zakryto ? " zakryto" : "");
     const done = passed[key+"-"+i] ? " · пройдено" : "";
-    btn.innerHTML = "<b>" + (i+1) + ". " + b.name + "</b><span>" +
-      plural(b.drill.length, "упражнение", "упражнения", "упражнений") + done + "</span>";
-    btn.onclick = () => openBlock(i);
+    btn.innerHTML = "<b>" + (b.zakryto ? "🔒 " : "") + (i+1) + ". " + b.name + "</b><span>" +
+      plural(b.zakryto ? b.n : b.drill.length, "упражнение", "упражнения", "упражнений") + done +
+      (b.zakryto ? ' · <span class="zamok">по подписке</span>' : "") + "</span>";
+    btn.onclick = () => b.zakryto ? pokazatPodpisku() : openBlock(i);
     list.appendChild(btn);
   });
   show("blocks");
@@ -5663,14 +5686,15 @@ function buildMenu(){
       const s=SETS[k];
       const count = s.kind==="text"
         ? plural(s.blocks.length, "текст", "текста", "текстов")
-        : plural(s.blocks.reduce((sum,b)=>sum+b.drill.length,0), "упражнение", "упражнения", "упражнений");
+        : plural(s.blocks.reduce((sum,b)=>sum+(b.zakryto ? b.n : b.drill.length),0), "упражнение", "упражнения", "упражнений");
       const doneN = s.blocks.filter((_, i) => passed[k+"-"+i]).length;   // сколько тем закрыто
       const doneTxt = doneN
         ? ' · <span class="done">' + (s.kind==="text" ? "прочитано " : "пройдено ") + doneN + " из " + s.blocks.length + "</span>"
         : "";
-      const btn=document.createElement("button"); btn.className="menu-item";
-      btn.innerHTML="<b>"+s.title+"</b><span>"+(s.sub||"")+" · "+count+doneTxt+"</span>";
-      btn.onclick=()=>startSet(k);
+      const btn=document.createElement("button"); btn.className="menu-item" + (s.zakryto ? " zakryto" : "");
+      btn.innerHTML="<b>"+(s.zakryto ? "🔒 " : "")+s.title+"</b><span>"+(s.sub||"")+" · "+count+doneTxt+
+        (s.zakryto ? ' · <span class="zamok">по подписке</span>' : "")+"</span>";
+      btn.onclick=()=> s.zakryto ? pokazatPodpisku() : startSet(k);
       box.appendChild(btn);
     });
   });
@@ -5687,6 +5711,27 @@ function buildMenu(){
     box.appendChild(reset);
   }
 }
+/* Открытая версия сайта: платные темы без заданий, вместо них экран подписки.
+   В полной версии (по личной ссылке) закрытых тем нет, и этот экран не показывается. */
+const KONTAKT = {tg:"https://t.me/Julia_2624", max:"https://max.ru/u/f9LHodD0cOIni4VD9GPPebr2TL49Ddd1BnD9yRRjR-DYDKCC7k2M3nYzqPA"};
+let podpiskaOtkuda = "menu";
+function pokazatPodpisku(){
+  stopSpeech();
+  podpiskaOtkuda = $("#blocks").classList.contains("hidden") ? "menu" : "blocks";
+  $("#kontaktTg").href = KONTAKT.tg;
+  $("#kontaktMax").href = KONTAKT.max;
+  cel("podpiska");
+  show("podpiska");
+}
+$("#podpiskaBack").onclick = () => { if(podpiskaOtkuda === "menu") buildMenu(); show(podpiskaOtkuda); };
+$("#kontaktTg").onclick = () => cel("napisat");
+$("#kontaktMax").onclick = () => cel("napisat");
+$("#kodOtkryt").onclick = () => {
+  const kod = ($("#kodVvod").value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if(!kod) return;
+  try{ localStorage.setItem("trenazher-dostup", kod); }catch(e){}
+  location.reload();
+};
 $("#addUser").onclick = dobavitUchenika;
 $("#newName").onkeydown = e => { if(e.key === "Enter") dobavitUchenika(); };
 $("#reportBack").onclick = () => { buildMenu(); show("menu"); };
